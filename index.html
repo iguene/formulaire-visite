@@ -255,7 +255,7 @@ async function submitNon(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Envoi…';
   try {
-    await createRecord({ Title: 'Absent – ' + new Date().toLocaleDateString('fr-FR'), Vient: false, Statut: 'Absent' });
+    await createRecord({ Title: 'Absent – ' + new Date().toLocaleDateString('fr-FR'), Vient: 'NON', Statut: 'Absent' });
     document.getElementById('formWrap').classList.add('hidden');
     showMsg('Votre absence a bien été enregistrée. Merci !', 'success');
   } catch(err) {
@@ -295,7 +295,7 @@ async function submitOui() {
 
   const fields = {
     Title: `${nom} ${prenom}`, Nom: nom, Prenom: prenom, Email: email,
-    Vient: true, NombreAccompagnants: n, NombreTotalPersonnes: total,
+    Vient: 'OUI', NombreAccompagnants: n, NombreTotalPersonnes: total,
     ChoixParticipation: choix === 'VR' ? 'Visite + repas' : 'Repas uniquement',
     Statut: 'Validé'
   };
