@@ -278,6 +278,20 @@ async function submitOui() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Vérification…';
 
+  // Vérification doublon email
+  try {
+    const filterEmail = encodeURIComponent(`{Email}="${email}"`);
+    const urlCheck = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_INSCRIPTIONS)}?filterByFormula=${filterEmail}&fields[]=Email`;
+    const rCheck = await fetch(urlCheck, { headers: HEADERS });
+    if (rCheck.ok) {
+      const dataCheck = await rCheck.json();
+      if (dataCheck.records && dataCheck.records.length > 0) {
+        showMsg('Une inscription existe déjà pour cette adresse email.', 'error');
+        btn.disabled = false; btn.innerHTML = 'Envoyer mon inscription'; return;
+      }
+    }
+  } catch(e) { console.warn('Vérification doublon échouée', e); }
+
   if (choix === 'VR') {
     await loadInscriptions();
     const rest = getPlacesRestantes(creneauSelId);
