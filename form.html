@@ -37,8 +37,8 @@
   .creneau-item.selected { background: #EEEDFE; border-color: #534AB7; color: #3C3489; }
   .creneau-item:disabled { opacity: 0.45; cursor: not-allowed; background: #f5f4f0; }
   .badge { font-size: 12px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
-  .badge-ok { background: #EAF3DE; color: #3B6D11; }
-  .badge-low { background: #FAEEDA; color: #854F0B; }
+  .badge-ok   { background: #EAF3DE; color: #3B6D11; }
+  .badge-low  { background: #FAEEDA; color: #854F0B; }
   .badge-full { background: #FCEBEB; color: #A32D2D; }
   .submit-btn {
     width: 100%; padding: 13px; border: none; border-radius: 10px;
@@ -47,37 +47,27 @@
   }
   .submit-btn:hover { background: #3C3489; }
   .submit-btn:disabled { background: #b0aed8; cursor: not-allowed; }
-  .msg { padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem; font-size: 14px; line-height: 1.5; }
-  .msg-error { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
+  .msg { padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem; font-size: 14px; line-height: 1.6; }
+  .msg-error   { background: #FCEBEB; color: #A32D2D; border: 1px solid #F09595; }
   .msg-success { background: #EAF3DE; color: #27500A; border: 1px solid #97C459; }
   .hidden { display: none !important; }
   .accomp-block { border-top: 1px solid #f0efe8; margin-top: 0.75rem; padding-top: 0.75rem; }
   .accomp-title { font-size: 13px; font-weight: 600; color: #4a4a45; margin-bottom: 0.5rem; }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .config-banner { background: #FAEEDA; border: 1px solid #EF9F27; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; font-size: 13px; color: #633806; line-height: 1.6; }
-  .config-banner strong { font-weight: 600; }
-  .config-banner code { background: #fff; padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  .loading { text-align: center; padding: 2rem; color: #9b9b93; font-size: 14px; }
 </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- ⚠️ Bannière de configuration (à supprimer une fois configuré) -->
-  <div class="config-banner" id="configBanner">
-    <strong>Configuration requise</strong> — Avant de déployer, remplacez dans le code :<br>
-    <code>VOTRE_AIRTABLE_TOKEN</code> → votre Personal Access Token Airtable<br>
-    <code>VOTRE_BASE_ID</code> → l'ID de votre base (commence par <code>app...</code>)<br>
-    Puis supprimez ce bloc.
-  </div>
-
   <div id="msgBox" class="hidden"></div>
+  <div id="loadingState" class="loading">Chargement des créneaux…</div>
 
-  <div id="formWrap">
+  <div id="formWrap" class="hidden">
     <h1>Inscription à la visite</h1>
     <p class="subtitle">Répondez à ce formulaire pour confirmer votre participation à l'événement.</p>
 
-    <!-- Étape 1 : Vient ou non -->
     <div class="card">
       <div class="section-label">Participation</div>
       <label>Venez-vous à l'événement ?</label>
@@ -87,9 +77,7 @@
       </div>
     </div>
 
-    <!-- Formulaire si OUI -->
     <div id="formOui" class="hidden">
-
       <div class="card">
         <div class="section-label">Vos coordonnées</div>
         <div class="row">
@@ -119,7 +107,6 @@
           <button class="btn-toggle" id="btnVR" onclick="setChoix('VR')">Visite + repas</button>
           <button class="btn-toggle" id="btnRO" onclick="setChoix('RO')">Repas uniquement</button>
         </div>
-
         <div id="creneauxBlock" class="hidden">
           <div class="section-label" style="margin-top:0.5rem">Créneau de visite</div>
           <div id="creneauxList"></div>
@@ -130,72 +117,58 @@
       <button class="submit-btn" id="submitBtn" onclick="submitOui()">Envoyer mon inscription</button>
     </div>
 
-    <!-- Si NON -->
     <div id="formNon" class="hidden">
       <div class="card">
         <p style="font-size:14px;color:#6b6b65;margin-bottom:1rem">Merci de confirmer votre absence.</p>
-        <button class="submit-btn" onclick="submitNon()">Confirmer mon absence</button>
+        <button class="submit-btn" onclick="submitNon(event)">Confirmer mon absence</button>
       </div>
     </div>
   </div>
 
 </div>
-
 <script>
-// ============================================================
-//  CONFIGURATION — À MODIFIER AVANT DÉPLOIEMENT
-// ============================================================
-const AIRTABLE_TOKEN = 'VOTRE_AIRTABLE_TOKEN'; // Personal Access Token
-const BASE_ID        = 'VOTRE_BASE_ID';         // ex: appXXXXXXXXXXXXXX
+const AIRTABLE_TOKEN     = 'patO5hUwOXbyR5Hbt.822e68657c838db0a41d6b4390933aa84c0d41e9d44fb56417c5106fcbd6aa52';
+const BASE_ID            = 'apps7Iv0wxzheMlj1';
 const TABLE_CRENEAUX     = 'Créneaux visite';
 const TABLE_INSCRIPTIONS = 'Inscriptions visite';
-const CAPACITE = 20;
-// ============================================================
 
 const HEADERS = {
   'Authorization': `Bearer ${AIRTABLE_TOKEN}`,
   'Content-Type': 'application/json'
 };
 
-let creneaux = [];       // {id, airtableId, label, ordre}
-let inscriptions = [];   // données chargées depuis Airtable
-let vient = null;
-let choix = null;
-let creneauSelId = null;
+let creneaux = [];
+let inscriptions = [];
+let vient = null, choix = null, creneauSelId = null;
 
-// ── Chargement initial ───────────────────────────────────────
 async function init() {
   try {
     await Promise.all([loadCreneaux(), loadInscriptions()]);
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('formWrap').classList.remove('hidden');
   } catch(e) {
-    console.warn('Airtable non configuré — mode démo local', e);
-    creneaux = [
-      {id:1, airtableId:'rec_demo_1', label:'9h00 – 10h00', ordre:1},
-      {id:2, airtableId:'rec_demo_2', label:'9h30 – 10h30', ordre:2},
-      {id:3, airtableId:'rec_demo_3', label:'10h00 – 11h00', ordre:3},
-      {id:4, airtableId:'rec_demo_4', label:'10h30 – 11h30', ordre:4},
-      {id:5, airtableId:'rec_demo_5', label:'11h00 – 12h00', ordre:5},
-    ];
+    document.getElementById('loadingState').innerHTML = '❌ Impossible de charger les données. Vérifiez votre connexion.';
+    console.error(e);
   }
 }
 
 async function loadCreneaux() {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_CRENEAUX)}?sort[0][field]=Ordre&sort[0][direction]=asc`;
-  const r = await fetch(url, {headers: HEADERS});
-  if (!r.ok) throw new Error('Airtable error');
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) throw new Error('Erreur créneaux');
   const data = await r.json();
-  creneaux = data.records.map((rec, i) => ({
-    id: i + 1,
+  creneaux = data.records.map(rec => ({
     airtableId: rec.id,
-    label: rec.fields.Title || rec.fields.Titre || '',
-    ordre: rec.fields.Ordre || i + 1
+    label: rec.fields.Title || '',
+    capacite: rec.fields.Capacite || 20
   }));
 }
 
 async function loadInscriptions() {
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_INSCRIPTIONS)}?filterByFormula={Statut}="Validé"`;
-  const r = await fetch(url, {headers: HEADERS});
-  if (!r.ok) throw new Error('Airtable error');
+  const filter = encodeURIComponent(`{Statut}="Validé"`);
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_INSCRIPTIONS)}?filterByFormula=${filter}&fields[]=Creneau&fields[]=NombreTotalPersonnes`;
+  const r = await fetch(url, { headers: HEADERS });
+  if (!r.ok) throw new Error('Erreur inscriptions');
   const data = await r.json();
   inscriptions = data.records.map(rec => ({
     creneauId: rec.fields.Creneau ? rec.fields.Creneau[0] : null,
@@ -203,15 +176,13 @@ async function loadInscriptions() {
   }));
 }
 
-// ── Calcul des places ────────────────────────────────────────
 function getPlacesRestantes(airtableId) {
-  const used = inscriptions
-    .filter(i => i.creneauId === airtableId)
-    .reduce((s, i) => s + i.total, 0);
-  return CAPACITE - used;
+  const cr = creneaux.find(c => c.airtableId === airtableId);
+  const capacite = cr ? cr.capacite : 20;
+  const used = inscriptions.filter(i => i.creneauId === airtableId).reduce((s, i) => s + i.total, 0);
+  return capacite - used;
 }
 
-// ── UI ───────────────────────────────────────────────────────
 function setVient(val) {
   vient = val;
   document.getElementById('btnOui').classList.toggle('active', val === true);
@@ -223,8 +194,7 @@ function setVient(val) {
 }
 
 function setChoix(val) {
-  choix = val;
-  creneauSelId = null;
+  choix = val; creneauSelId = null;
   document.getElementById('btnVR').classList.toggle('active', val === 'VR');
   document.getElementById('btnRO').classList.toggle('active', val === 'RO');
   document.getElementById('creneauxBlock').classList.toggle('hidden', val !== 'VR');
@@ -232,9 +202,7 @@ function setChoix(val) {
   clearMsg();
 }
 
-function getTotal() {
-  return 1 + parseInt(document.getElementById('nbAccomp').value || 0);
-}
+function getTotal() { return 1 + parseInt(document.getElementById('nbAccomp').value || 0); }
 
 function renderCreneaux() {
   const total = getTotal();
@@ -244,8 +212,8 @@ function renderCreneaux() {
     const rest = getPlacesRestantes(cr.airtableId);
     const insuff = rest < total;
     let badgeClass = 'badge-ok', badgeTxt = rest + ' places';
-    if (rest <= 0) { badgeClass = 'badge-full'; badgeTxt = 'Complet'; }
-    else if (rest <= 5) { badgeClass = 'badge-low'; badgeTxt = rest + ' restante' + (rest > 1 ? 's' : ''); }
+    if (rest <= 0)      { badgeClass = 'badge-full'; badgeTxt = 'Complet'; }
+    else if (rest <= 5) { badgeClass = 'badge-low';  badgeTxt = rest + ' restante' + (rest > 1 ? 's' : ''); }
     const btn = document.createElement('button');
     btn.className = 'creneau-item' + (creneauSelId === cr.airtableId ? ' selected' : '');
     btn.disabled = insuff;
@@ -262,15 +230,12 @@ function updateAccomp() {
   for (let i = 1; i <= n; i++) {
     const d = document.createElement('div');
     d.className = 'accomp-block';
-    d.innerHTML = `
-      <div class="accomp-title">Accompagnant ${i}</div>
+    d.innerHTML = `<div class="accomp-title">Accompagnant ${i}</div>
       <div class="row">
         <div><label>Nom</label><input type="text" id="a${i}nom" placeholder="Nom"></div>
         <div><label>Prénom</label><input type="text" id="a${i}prenom" placeholder="Prénom"></div>
       </div>
-      <label>Âge</label>
-      <input type="number" id="a${i}age" placeholder="Ex : 35" min="0" max="120" style="width:120px">
-    `;
+      <label>Âge</label><input type="number" id="a${i}age" placeholder="Ex : 35" min="0" max="120" style="width:120px">`;
     list.appendChild(d);
   }
   if (choix === 'VR') renderCreneaux();
@@ -281,94 +246,65 @@ function showMsg(txt, type) {
   b.className = 'msg ' + (type === 'error' ? 'msg-error' : 'msg-success');
   b.innerHTML = txt;
   b.classList.remove('hidden');
-  b.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function clearMsg() { document.getElementById('msgBox').classList.add('hidden'); }
 
-// ── Soumission absence ───────────────────────────────────────
-async function submitNon() {
-  const btn = event.target;
+async function submitNon(e) {
+  const btn = e.target;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Envoi…';
   try {
-    await createRecord({
-      Vient: false,
-      Statut: 'Absent',
-      Title: 'Absent – ' + new Date().toLocaleDateString('fr-FR')
-    });
+    await createRecord({ Title: 'Absent – ' + new Date().toLocaleDateString('fr-FR'), Vient: false, Statut: 'Absent' });
     document.getElementById('formWrap').classList.add('hidden');
     showMsg('Votre absence a bien été enregistrée. Merci !', 'success');
-  } catch(e) {
+  } catch(err) {
     showMsg('Une erreur est survenue. Veuillez réessayer.', 'error');
-    btn.disabled = false;
-    btn.innerHTML = 'Confirmer mon absence';
+    btn.disabled = false; btn.innerHTML = 'Confirmer mon absence';
   }
 }
 
-// ── Soumission inscription ───────────────────────────────────
 async function submitOui() {
   clearMsg();
-  const nom    = document.getElementById('nom').value.trim();
+  const nom = document.getElementById('nom').value.trim();
   const prenom = document.getElementById('prenom').value.trim();
-  const email  = document.getElementById('email').value.trim();
-
-  if (!nom || !prenom || !email) {
-    showMsg('Merci de renseigner votre nom, prénom et email.', 'error'); return;
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showMsg('L\'adresse email ne semble pas valide.', 'error'); return;
-  }
-  if (!choix) {
-    showMsg('Merci de choisir votre type de participation.', 'error'); return;
-  }
-  if (choix === 'VR' && !creneauSelId) {
-    showMsg('Merci de choisir un créneau de visite.', 'error'); return;
-  }
+  const email = document.getElementById('email').value.trim();
+  if (!nom || !prenom || !email) { showMsg('Merci de renseigner votre nom, prénom et email.', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg("L'adresse email ne semble pas valide.", 'error'); return; }
+  if (!choix) { showMsg('Merci de choisir votre type de participation.', 'error'); return; }
+  if (choix === 'VR' && !creneauSelId) { showMsg('Merci de choisir un créneau de visite.', 'error'); return; }
 
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Vérification…';
 
-  // Vérification anti-doublon en temps réel
   if (choix === 'VR') {
     await loadInscriptions();
     const rest = getPlacesRestantes(creneauSelId);
     const total = getTotal();
     if (rest < total) {
-      showMsg('Désolé, ce créneau vient d\'être complet. Merci d\'en choisir un autre.', 'error');
-      creneauSelId = null;
-      renderCreneaux();
-      btn.disabled = false;
-      btn.innerHTML = 'Envoyer mon inscription';
-      return;
+      showMsg("Désolé, ce créneau vient d'être complet. Merci d'en choisir un autre.", 'error');
+      creneauSelId = null; renderCreneaux();
+      btn.disabled = false; btn.innerHTML = 'Envoyer mon inscription'; return;
     }
   }
 
   btn.innerHTML = '<span class="spinner"></span>Enregistrement…';
-
   const n = parseInt(document.getElementById('nbAccomp').value);
   const total = getTotal();
+
   const fields = {
-    Title: `${nom} ${prenom}`,
-    Nom: nom,
-    Prenom: prenom,
-    Email: email,
-    Vient: true,
-    NombreAccompagnants: n,
-    NombreTotalPersonnes: total,
+    Title: `${nom} ${prenom}`, Nom: nom, Prenom: prenom, Email: email,
+    Vient: true, NombreAccompagnants: n, NombreTotalPersonnes: total,
     ChoixParticipation: choix === 'VR' ? 'Visite + repas' : 'Repas uniquement',
     Statut: 'Validé'
   };
-
-  if (choix === 'VR' && creneauSelId) {
-    fields['Creneau'] = [creneauSelId]; // Lookup field
-  }
-
-  // Accompagnants
+  if (choix === 'VR' && creneauSelId) fields['Creneau'] = [creneauSelId];
   for (let i = 1; i <= n; i++) {
-    fields[`Accompagnant${i}Nom`]    = (document.getElementById(`a${i}nom`) || {}).value || '';
+    fields[`Accompagnant${i}Nom`]    = (document.getElementById(`a${i}nom`)    || {}).value || '';
     fields[`Accompagnant${i}Prenom`] = (document.getElementById(`a${i}prenom`) || {}).value || '';
-    fields[`Accompagnant${i}Age`]    = parseInt((document.getElementById(`a${i}age`) || {}).value) || null;
+    const age = parseInt((document.getElementById(`a${i}age`) || {}).value);
+    if (!isNaN(age)) fields[`Accompagnant${i}Age`] = age;
   }
 
   try {
@@ -379,29 +315,19 @@ async function submitOui() {
       : `<br><br><strong>Participation :</strong> Repas uniquement<br><strong>Personnes :</strong> ${total}`;
     document.getElementById('formWrap').classList.add('hidden');
     showMsg(`Votre inscription a bien été enregistrée, merci ${prenom} !${detail}`, 'success');
-  } catch(e) {
-    showMsg('Une erreur est survenue lors de l\'enregistrement. Veuillez réessayer.', 'error');
-    btn.disabled = false;
-    btn.innerHTML = 'Envoyer mon inscription';
+  } catch(err) {
+    showMsg("Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.", 'error');
+    btn.disabled = false; btn.innerHTML = 'Envoyer mon inscription';
   }
 }
 
-// ── API Airtable ─────────────────────────────────────────────
 async function createRecord(fields) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(TABLE_INSCRIPTIONS)}`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({ fields })
-  });
-  if (!r.ok) {
-    const err = await r.json();
-    throw new Error(err.error?.message || 'Airtable error');
-  }
+  const r = await fetch(url, { method: 'POST', headers: HEADERS, body: JSON.stringify({ fields }) });
+  if (!r.ok) { const err = await r.json(); throw new Error(err.error?.message || 'Airtable error'); }
   return r.json();
 }
 
-// ── Lancement ────────────────────────────────────────────────
 init();
 </script>
 </body>
