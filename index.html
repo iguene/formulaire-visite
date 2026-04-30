@@ -272,6 +272,17 @@ async function submitOui() {
   if (!nom || !prenom || !email) { showMsg('Merci de renseigner votre nom, prénom et email.', 'error'); return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg("L'adresse email ne semble pas valide.", 'error'); return; }
   if (!choix) { showMsg('Merci de choisir votre type de participation.', 'error'); return; }
+
+  // Validation accompagnants obligatoires
+  const nbA = parseInt(document.getElementById('nbAccomp').value);
+  for (let i = 1; i <= nbA; i++) {
+    const aNom    = (document.getElementById('a'+i+'nom')    || {}).value || '';
+    const aPrenom = (document.getElementById('a'+i+'prenom') || {}).value || '';
+    const aAge    = (document.getElementById('a'+i+'age')    || {}).value || '';
+    if (!aNom.trim() || !aPrenom.trim() || !aAge.trim()) {
+      showMsg('Merci de renseigner le nom, prenom et age de l accompagnant ' + i + '.', 'error'); return;
+    }
+  }
   if (choix === 'VR' && !creneauSelId) { showMsg('Merci de choisir un créneau de visite.', 'error'); return; }
 
   const btn = document.getElementById('submitBtn');
